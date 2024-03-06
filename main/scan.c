@@ -7,11 +7,7 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-/*
-    This example shows how to scan for available set of APs.
-*/
 #include <string.h>
-//#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "esp_wifi.h"
@@ -24,9 +20,6 @@
 #define	LED_GPIO_PIN GPIO_NUM_4
 #define	WIFI_CHANNEL_MAX 13
 #define	WIFI_CHANNEL_SWITCH_INTERVAL 500
-
-/* #define DEFAULT_SCAN_LIST_SIZE CONFIG_EXAMPLE_SCAN_LIST_SIZE */
-#define DEFAULT_SCAN_LIST_SIZE 20
 
 static wifi_country_t wifi_country = {.cc="US", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
 
@@ -45,45 +38,34 @@ typedef struct {
 	uint8_t payload[0]; /* network data ended with 4 bytes csum (CRC32) */
 } wifi_ieee80211_packet_t;
 
-//static esp_err_t event_handler(void *ctx, system_event_t *event);
 static void wifi_sniffer_init(void);
 static void wifi_sniffer_set_channel(uint8_t channel);
 static const char *wifi_sniffer_packet_type2str(wifi_promiscuous_pkt_type_t type);
 static void wifi_sniffer_packet_handler(void *buff, wifi_promiscuous_pkt_type_t type);
 
-//static const char *TAG = "scan";
-
 void app_main(void)
 {
 	uint8_t channel = 1;
-	//uint8_t level = 0;
 
 	/* setup */
 	wifi_sniffer_init();
-	//gpio_set_direction(LED_GPIO_PIN, GPIO_MODE_OUTPUT);
 
 	/* loop */
     // Add code to recieve IO input to cancel and exit routine... 
 	while (true) {
-		//gpio_set_level(LED_GPIO_PIN, level ^= 1);
 		vTaskDelay(WIFI_CHANNEL_SWITCH_INTERVAL / portTICK_PERIOD_MS);
 		wifi_sniffer_set_channel(channel);
 		channel = (channel % WIFI_CHANNEL_MAX) + 1;
-    }
 
-    for (int i = 3; i >= 0; i--) {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+		if (channel == 1)
+		{
+       		printf("Scanned from 1 to %d\n", WIFI_CHANNEL_MAX);			
+	        vTaskDelay(1000 / portTICK_PERIOD_MS);
+		}
     }
-    printf("Restarting now.\n");
     fflush(stdout);
-    esp_restart();
+    //esp_restart();
 }
-
-//esp_err_t event_handler(void *ctx, system_event_t *event)
-//{	
-//	return ESP_OK;
-//}
 
 void wifi_sniffer_init(void)
 {
@@ -94,14 +76,12 @@ void wifi_sniffer_init(void)
     }
     ESP_ERROR_CHECK( ret );
 
-//    	tcpip_adapter_init();
-//    	ESP_ERROR_CHECK( esp_event_loop_init(event_handler, NULL) );
-    	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
 	ESP_ERROR_CHECK( esp_wifi_set_country(&wifi_country) ); /* set country for channel range [1, 13] */
 	ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-    	ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_NULL) );
-    	ESP_ERROR_CHECK( esp_wifi_start() );
+    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_NULL) );
+    ESP_ERROR_CHECK( esp_wifi_start() );
 	esp_wifi_set_promiscuous(true);
 	esp_wifi_set_promiscuous_rx_cb(&wifi_sniffer_packet_handler);
 }
@@ -131,23 +111,64 @@ void wifi_sniffer_packet_handler(void* buff, wifi_promiscuous_pkt_type_t type)
 	const wifi_ieee80211_packet_t *ipkt = (wifi_ieee80211_packet_t *)ppkt->payload;
 	const wifi_ieee80211_mac_hdr_t *hdr = &ipkt->hdr;
 
-	printf("PACKET TYPE=%s, CHAN=%02d, RSSI=%02d,"
-		" ADDR1=%02x:%02x:%02x:%02x:%02x:%02x,"
-		" ADDR2=%02x:%02x:%02x:%02x:%02x:%02x,"
-		" ADDR3=%02x:%02x:%02x:%02x:%02x:%02x\n",
-		wifi_sniffer_packet_type2str(type),
-		ppkt->rx_ctrl.channel,
-		ppkt->rx_ctrl.rssi,
-		/* ADDR1 */
-		hdr->addr1[0],hdr->addr1[1],hdr->addr1[2],
-		hdr->addr1[3],hdr->addr1[4],hdr->addr1[5],
-		/* ADDR2 */
-		hdr->addr2[0],hdr->addr2[1],hdr->addr2[2],
-		hdr->addr2[3],hdr->addr2[4],hdr->addr2[5],
-		/* ADDR3 */
-		hdr->addr3[0],hdr->addr3[1],hdr->addr3[2],
-		hdr->addr3[3],hdr->addr3[4],hdr->addr3[5]
-	);
+    //uint8_t addr1[6]; /* receiver address */
+	//uint8_t addr2[6]; /* sender address */
+	//uint8_t addr3[6]; /* filtering address */
+
+	uint8_t broadcast_address[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+	if (memcmp(hdr->addr1, broadcast_address, sizeof(broadcast_address)) == 0)
+	{
+		uint8_t sender_address[6] = {0x8A, 0xEE, 0x13, 0x57, 0x61, 0xAE};
+
+		if (memcmp(hdr->addr2, sender_address, sizeof(sender_address)) == 0)
+		{
+			printf("MATCHED SENDER - PACKET TYPE=%s, CHAN=%02d, RSSI=%02d,"
+				" ADDR2=%02x:%02x:%02x:%02x:%02x:%02x\n",
+				wifi_sniffer_packet_type2str(type),
+				ppkt->rx_ctrl.channel,
+				ppkt->rx_ctrl.rssi,
+				/* ADDR2 */
+				hdr->addr2[0],hdr->addr2[1],hdr->addr2[2],
+				hdr->addr2[3],hdr->addr2[4],hdr->addr2[5]
+			);
+		}
+		else {
+			// printf("UNMATCHED SENDER - PACKET TYPE=%s, CHAN=%02d, RSSI=%02d,"
+			// 	" ADDR2=%02x:%02x:%02x:%02x:%02x:%02x,"
+			// 	" ADDR3=%02x:%02x:%02x:%02x:%02x:%02x\n",
+			// 	wifi_sniffer_packet_type2str(type),
+			// 	ppkt->rx_ctrl.channel,
+			// 	ppkt->rx_ctrl.rssi,
+			// 	/* ADDR2 */
+			// 	hdr->addr2[0],hdr->addr2[1],hdr->addr2[2],
+			// 	hdr->addr2[3],hdr->addr2[4],hdr->addr2[5],
+			// 	/* ADDR3 */
+			// 	hdr->addr3[0],hdr->addr3[1],hdr->addr3[2],
+			// 	hdr->addr3[3],hdr->addr3[4],hdr->addr3[5]
+			// );
+		}
+	}
+	else
+	{
+			// printf("UNKNOWN RECIEVER - PACKET TYPE=%s, CHAN=%02d, RSSI=%02d,"
+			// 	" ADDR2=%02x:%02x:%02x:%02x:%02x:%02x,"
+			// 	" ADDR2=%02x:%02x:%02x:%02x:%02x:%02x,"
+			// 	" ADDR3=%02x:%02x:%02x:%02x:%02x:%02x\n",
+			// 	wifi_sniffer_packet_type2str(type),
+			// 	ppkt->rx_ctrl.channel,
+			// 	ppkt->rx_ctrl.rssi,
+			// 	/* ADDR1 */
+			// 	hdr->addr1[0],hdr->addr1[1],hdr->addr1[2],
+			// 	hdr->addr1[3],hdr->addr1[4],hdr->addr1[5],
+			// 	/* ADDR2 */
+			// 	hdr->addr2[0],hdr->addr2[1],hdr->addr2[2],
+			// 	hdr->addr2[3],hdr->addr2[4],hdr->addr2[5],
+			// 	/* ADDR3 */
+			// 	hdr->addr3[0],hdr->addr3[1],hdr->addr3[2],
+			// 	hdr->addr3[3],hdr->addr3[4],hdr->addr3[5]
+			// );
+	}
 }
 
 
