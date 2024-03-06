@@ -1,7 +1,7 @@
 | Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-S2 | ESP32-S3 |
 | ----------------- | ----- | -------- | -------- | -------- | -------- | -------- |
 
-# scanner
+# Scanner
 Scanner code to learn about ESP, WIFI, and Connecting Data to AWS
 
 This goal of this project is to create a scanner that will detect and notify users via a Kiosk that they are wearing electronic devices. This will help prevent accidental security violations for lab environments that restrict outside electronics. 
